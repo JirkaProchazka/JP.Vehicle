@@ -38,6 +38,7 @@ namespace JP
 			byte Minutes = 0;
 			byte Seconds = 0;
 
+			unsigned long TimeRelatedMillis = 0;
 
 			void AddSecond()
 			{
@@ -123,7 +124,7 @@ namespace JP
 			DateTime GetActual();
 			void GetActual(DateTime* dateTime);
 
-			void ReadDevice(byte* seconds, byte* minutes, byte* hours, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year);
+			void ReadDevice(byte* seconds, byte* minutes, byte* hours, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year, unsigned long* relatedMillis);
 
 			// Set Time ---------------------------------
 			void SetDateTime(DateTime dateTime);

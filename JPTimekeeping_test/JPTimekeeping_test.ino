@@ -21,6 +21,8 @@ enum I2C_ADDRESSESS
 
 JP::Timekeeping::Timekeeper RTC;
 
+const int TimeRefreshPeriod = 1000;
+
 void setup() {
 
 	Wire.begin();
@@ -58,7 +60,7 @@ void setup() {
 // the loop function runs over and over again until power down or reset
 void loop() {
 
-   
+   if(millis() - lastRefresh)
 
    RTC.RefreshActual();
    auto dateTime = RTC.GetActual();

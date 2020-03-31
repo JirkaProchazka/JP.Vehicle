@@ -45,7 +45,7 @@ namespace JP
 
 
 
-		void Timekeeper::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year) {
+		void Timekeeper::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year, unsigned long* relatedMillis) {
 			Wire.beginTransmission(I2C_ADDR);
 			Wire.write(0);							// set DS3231 register pointer to 00h
 			Wire.endTransmission();
@@ -59,12 +59,14 @@ namespace JP
 			*dayOfMonth = bcdToDec(Wire.read());
 			*month = bcdToDec(Wire.read());
 			*year = bcdToDec(Wire.read());
+			
+			*relatedMillis = millis();
 		}
 
 
 		void Timekeeper::RefreshActual()
 		{
-			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year);
+			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year &Actual.TimeRelatedMillis);
 		}
 
 		DateTime Timekeeper::GetActual()
@@ -80,6 +82,7 @@ namespace JP
 			dateTime->DayOfMonth = Actual.DayOfMonth;
 			dateTime->Month = Actual.Month;
 			dateTime->Year = Actual.Year;
+			dateTime->TimeRelatedMillis = Actual.TimeRelatedMillis;
 		}
 
 
