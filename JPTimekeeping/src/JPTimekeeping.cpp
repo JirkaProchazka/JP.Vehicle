@@ -18,8 +18,6 @@ namespace JP
 		String DateTime::DayNamesShort[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 
-
-
 		void Timekeeper::Init(int i2c_addr = 0x68)
 		{
 			I2C_ADDR = i2c_addr;

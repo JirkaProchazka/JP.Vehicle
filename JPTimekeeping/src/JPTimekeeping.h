@@ -130,7 +130,7 @@ namespace JP
 			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
 		};
 
-		extern Timekeeper Clock;
+		//extern Timekeeper Clock;
 
 
 		// Converting
