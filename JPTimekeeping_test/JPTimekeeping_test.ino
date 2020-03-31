@@ -1,10 +1,16 @@
 /*
  Name:		JPTimekeeping_test.ino
  Created:	4/1/2020 12:52:03 AM
- Author:	Jirka
+ Author:	JP
 */
 
+
+
+
 // the setup function runs once when you press reset or power the board
+#include <Wire.h>
+
+
 void setup() {
 
 }

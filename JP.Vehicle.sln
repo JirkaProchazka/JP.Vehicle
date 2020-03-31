@@ -10,6 +10,10 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "JPTimekeeping_test", "JPTimekeeping_test\JPTimekeeping_test.vcxproj", "{C0160082-6B76-4BAD-9A69-F245B4E1307A}"
 EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		JPTimekeeping\JPTimekeeping.vcxitems*{c0160082-6b76-4bad-9a69-f245b4e1307a}*SharedItemsImports = 4
+		JPTimekeeping\JPTimekeeping.vcxitems*{e6f27580-cf85-4540-a3a3-357616f46d07}*SharedItemsImports = 9
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
 		Release|x86 = Release|x86
