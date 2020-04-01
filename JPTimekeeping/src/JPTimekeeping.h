@@ -9,9 +9,9 @@
 #define _JPTimekeeping_h
 
 #if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
+#include "arduino.h"
 #else
-	#include "WProgram.h"
+#include "WProgram.h"
 #endif
 
 
@@ -40,11 +40,19 @@ namespace JP
 
 			unsigned long TimeRelatedMillis = 0;
 
-			
+
+			void TimeToChar(char*& buffer, char* format = "%2d:%02d:%02d")
+			{
+				sprintf(buffer, format, Hours, Minutes, Seconds);
+			}
 
 			String TimeToString()
 			{
 				return  GetLeadingZero(Hours, " ") + ":" + GetLeadingZero(Minutes) + ":" + GetLeadingZero(Seconds);
+			}
+			String TimeShortToString()
+			{
+				return  GetLeadingZero(Hours, " ") + ":" + GetLeadingZero(Minutes);
 			}
 			String DateToString()
 			{
@@ -60,11 +68,11 @@ namespace JP
 
 			String DayName()
 			{
-				return DayNames[DayOfWeek];
+				return DayNames[DayOfWeek-1];
 			}
 			String DayNameShort()
 			{
-				return DayNamesShort[DayOfWeek];
+				return DayNamesShort[DayOfWeek-1];
 			}
 
 
@@ -88,6 +96,11 @@ namespace JP
 			int NUMBER_OF_TRANSMISSION_BYTES = 7;
 			DateTime Actual;
 
+			byte shortMonths[7] = { 1,3,5,7,8,10,12 };
+			byte longMonths[4] = { 4,6,9,11 };
+			bool IsEndOfMonth();
+			bool IsLeapYear();
+
 			void SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year, unsigned long relatedMillis);
 			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
 			void ReadDevice(byte* seconds, byte* minutes, byte* hours, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year);
@@ -101,11 +114,15 @@ namespace JP
 			void GetActual(DateTime* dateTime);
 			// Set Time ---------------------------------
 			void SetDateTime(DateTime dateTime, unsigned long relatedTime = millis());
-			
+
 			void Timekeeper::AddSecond(byte seconds = 1);
 			void Timekeeper::AddMinute();
 			void Timekeeper::AddHour();
-				
+			void Timekeeper::AddDay();
+			
+			void Timekeeper::AddMonth();
+			void Timekeeper::AddYear();
+
 		};
 
 		//extern Timekeeper Clock;

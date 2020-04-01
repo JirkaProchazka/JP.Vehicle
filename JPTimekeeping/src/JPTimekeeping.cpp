@@ -16,6 +16,7 @@ namespace JP
 
 		String DateTime::DayNames[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 		String DateTime::DayNamesShort[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+		int LeapYears[] = { 24, 28, 32, 36, 40, 44, 48, 82 };
 
 
 		void Timekeeper::Init(int i2c_addr = 0x68)
@@ -29,6 +30,7 @@ namespace JP
 			Actual.Hours = 0;
 			Actual.Minutes = 0;
 			Actual.Seconds = 0;
+
 			Actual.TimeRelatedMillis = 0;
 		}
 
@@ -67,7 +69,7 @@ namespace JP
 
 		void Timekeeper::RefreshActual()
 		{
-			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year );
+			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year);
 			Actual.TimeRelatedMillis = millis();
 		}
 
@@ -90,7 +92,7 @@ namespace JP
 
 		void Timekeeper::SetDateTime(DateTime dateTime, unsigned long relatedTime = millis())
 		{
-			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year, relatedTime );
+			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year, relatedTime);
 			SetDevice(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
 		}
 
@@ -117,8 +119,6 @@ namespace JP
 				{
 					Actual.Seconds = 0;
 					AddMinute();
-					// pokud behem pridavani vterin doslo k preteceni do noveho dne, pak uz neni potreba cas updatovat, jelikoz se vycetl sam
-					if (Actual.Hours == 0) break;
 				}
 				else Actual.Seconds++;
 			}
@@ -137,10 +137,85 @@ namespace JP
 			if (Actual.Hours >= 23)
 			{
 				Actual.Hours = 0;
-				RefreshActual();
+				AddDay();
 			}
 			else Actual.Hours++;
 		}
+		void Timekeeper::AddDay()
+		{
+			if (Actual.DayOfWeek >= 7)
+			{
+				Actual.DayOfWeek = 1;
+			}
+			else Actual.DayOfWeek++;
+
+			if (IsEndOfMonth())
+			{
+				Actual.DayOfMonth = 1;
+				AddMonth();
+			}
+			else Actual.DayOfMonth++;
+		}
+		void Timekeeper::AddMonth()
+		{
+			if (Actual.Month == 12)
+			{
+				Actual.Month = 1;
+				AddYear();
+			}
+			else Actual.Month++;
+		}
+		void Timekeeper::AddYear()
+		{
+			Actual.Year++;
+		}
+
+		bool Timekeeper::IsEndOfMonth()
+		{
+			switch (Actual.Month)
+			{
+				case 2:
+				{
+					if (Actual.DayOfMonth >= 29 || ((Actual.DayOfMonth >= 28) && IsLeapYear()))
+						return true;
+					break;
+				}
+				case 4:
+				case 6:
+				case 9:
+				case 11:
+				{
+					if (Actual.DayOfMonth >= 30)
+						return true;
+					break;
+				}
+				default:
+					if (Actual.DayOfMonth >= 31)
+						return true;
+					break;
+			}
+
+			return false;
+		}
+		bool Timekeeper::IsLeapYear()
+		{
+			switch (Actual.Year)
+			{
+				case 24:
+				case 28:
+				case 32:
+				case 36:
+				case 40:
+				case 44:
+				case 48:
+				case 52:
+					return true;
+			}
+
+			return false;
+		}
+
+
 
 		// GENERAL FUNCTION
 
