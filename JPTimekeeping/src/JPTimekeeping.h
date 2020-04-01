@@ -40,33 +40,7 @@ namespace JP
 
 			unsigned long TimeRelatedMillis = 0;
 
-			void AddSecond()
-			{
-				if (Seconds >= 59)
-				{
-					Seconds = 0;
-					AddMinute();
-				}
-				else Seconds++;
-			}
-			void AddMinute()
-			{
-				if (Minutes >= 59)
-				{
-					Minutes = 0;
-					AddHour();
-				}
-				else Minutes++;
-			}
-			void AddHour()
-			{
-				if (Hours >= 23)
-				{
-					Hours = 0;
-				}
-				else Hours++;
-			}
-
+			
 
 			String TimeToString()
 			{
@@ -129,6 +103,12 @@ namespace JP
 			// Set Time ---------------------------------
 			void SetDateTime(DateTime dateTime);
 			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
+
+
+			void Timekeeper::AddSecond();
+			void Timekeeper::AddMinute();
+			void Timekeeper::AddHour();
+				
 		};
 
 		//extern Timekeeper Clock;

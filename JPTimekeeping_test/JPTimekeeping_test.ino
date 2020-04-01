@@ -21,7 +21,13 @@ enum I2C_ADDRESSESS
 
 JP::Timekeeping::Timekeeper RTC;
 
-const int TimeRefreshPeriod = 1000;
+const unsigned long TimeReadPeriod = 1000 * 60 * 30; // 30 min
+
+const unsigned long TimeRefreshPeriod = 1000; // 
+unsigned long LastTimeRefresh = 0;
+
+const int TimePrintPeriod = 1000; // 1 sec
+unsigned long LastTimePrint = 0;
 
 void setup() {
 
@@ -31,7 +37,7 @@ void setup() {
 	DateTime::DateSeparator = '-';
 
 
-    RTC.Init(I2C_ADDRESSESS::RTC_MODULE);
+	RTC.Init(I2C_ADDRESSESS::RTC_MODULE);
 
 	/*
    JP::Timekeeping::DateTime d;
@@ -60,12 +66,20 @@ void setup() {
 // the loop function runs over and over again until power down or reset
 void loop() {
 
-   if(millis() - lastRefresh)
+	if (millis() - RTC.GetActual().TimeRelatedMillis > TimeReadPeriod)
+	{
+		RTC.RefreshActual();
+	}
+	else if (millis() - LastTimeRefresh > TimeRefreshPeriod)
+	{
+		RTC.AddSecond();
+		LastTimeRefresh = millis();
+	}
 
-   RTC.RefreshActual();
-   auto dateTime = RTC.GetActual();
-   Serial.println(dateTime.TimeToString());
+	if (millis() - LastTimePrint >= TimePrintPeriod)
+	{
+		Serial.println(RTC.GetActual().TimeToString());
+		LastTimePrint = millis();
+	}
 
-   delay(1000);
-   
 }

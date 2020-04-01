@@ -66,7 +66,7 @@ namespace JP
 
 		void Timekeeper::RefreshActual()
 		{
-			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year &Actual.TimeRelatedMillis);
+			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year, &Actual.TimeRelatedMillis);
 		}
 
 		DateTime Timekeeper::GetActual()
@@ -107,6 +107,32 @@ namespace JP
 			Wire.endTransmission();
 		}
 
+		void Timekeeper::AddSecond()
+		{
+			if (Actual.Seconds >= 59)
+			{
+				Actual.Seconds = 0;
+				AddMinute();
+			}
+			else Actual.Seconds++;
+		}
+		void Timekeeper::AddMinute()
+		{
+			if (Actual.Minutes >= 59)
+			{
+				Actual.Minutes = 0;
+				AddHour();
+			}
+			else Actual.Minutes++;
+		}
+		void Timekeeper::AddHour()
+		{
+			if (Actual.Hours >= 23)
+			{
+				RefreshActual();
+			}
+			else Actual.Hours++;
+		}
 
 		// GENERAL FUNCTION
 
