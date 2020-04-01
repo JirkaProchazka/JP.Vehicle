@@ -88,7 +88,9 @@ namespace JP
 			int NUMBER_OF_TRANSMISSION_BYTES = 7;
 			DateTime Actual;
 
-			void SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
+			void SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year, unsigned long relatedMillis);
+			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
+			void ReadDevice(byte* seconds, byte* minutes, byte* hours, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year);
 
 		public:
 			void Init(int i2c_addr = 0x68);
@@ -97,15 +99,10 @@ namespace JP
 			void RefreshActual();
 			DateTime GetActual();
 			void GetActual(DateTime* dateTime);
-
-			void ReadDevice(byte* seconds, byte* minutes, byte* hours, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year, unsigned long* relatedMillis);
-
 			// Set Time ---------------------------------
-			void SetDateTime(DateTime dateTime);
-			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
-
-
-			void Timekeeper::AddSecond();
+			void SetDateTime(DateTime dateTime, unsigned long relatedTime = millis());
+			
+			void Timekeeper::AddSecond(byte seconds = 1);
 			void Timekeeper::AddMinute();
 			void Timekeeper::AddHour();
 				

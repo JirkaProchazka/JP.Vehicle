@@ -29,10 +29,11 @@ namespace JP
 			Actual.Hours = 0;
 			Actual.Minutes = 0;
 			Actual.Seconds = 0;
+			Actual.TimeRelatedMillis = 0;
 		}
 
 
-		void Timekeeper::SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year)
+		void Timekeeper::SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year, unsigned long relatedMillis = millis())
 		{
 			Actual.Seconds = seconds;
 			Actual.Minutes = minutes;
@@ -41,11 +42,13 @@ namespace JP
 			Actual.DayOfMonth = dayOfMonth;
 			Actual.Month = month;
 			Actual.Year = year;
+
+			Actual.TimeRelatedMillis = relatedMillis;
 		}
 
 
 
-		void Timekeeper::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year, unsigned long* relatedMillis) {
+		void Timekeeper::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year) {
 			Wire.beginTransmission(I2C_ADDR);
 			Wire.write(0);							// set DS3231 register pointer to 00h
 			Wire.endTransmission();
@@ -59,14 +62,13 @@ namespace JP
 			*dayOfMonth = bcdToDec(Wire.read());
 			*month = bcdToDec(Wire.read());
 			*year = bcdToDec(Wire.read());
-			
-			*relatedMillis = millis();
 		}
 
 
 		void Timekeeper::RefreshActual()
 		{
-			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year, &Actual.TimeRelatedMillis);
+			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year );
+			Actual.TimeRelatedMillis = millis();
 		}
 
 		DateTime Timekeeper::GetActual()
@@ -86,9 +88,9 @@ namespace JP
 		}
 
 
-		void Timekeeper::SetDateTime(DateTime dateTime)
+		void Timekeeper::SetDateTime(DateTime dateTime, unsigned long relatedTime = millis())
 		{
-			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
+			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year, relatedTime );
 			SetDevice(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
 		}
 
@@ -107,14 +109,19 @@ namespace JP
 			Wire.endTransmission();
 		}
 
-		void Timekeeper::AddSecond()
+		void Timekeeper::AddSecond(byte seconds = 1)
 		{
-			if (Actual.Seconds >= 59)
+			for (size_t i = 0; i < seconds; i++)
 			{
-				Actual.Seconds = 0;
-				AddMinute();
+				if (Actual.Seconds >= 59)
+				{
+					Actual.Seconds = 0;
+					AddMinute();
+					// pokud behem pridavani vterin doslo k preteceni do noveho dne, pak uz neni potreba cas updatovat, jelikoz se vycetl sam
+					if (Actual.Hours == 0) break;
+				}
+				else Actual.Seconds++;
 			}
-			else Actual.Seconds++;
 		}
 		void Timekeeper::AddMinute()
 		{
@@ -129,6 +136,7 @@ namespace JP
 		{
 			if (Actual.Hours >= 23)
 			{
+				Actual.Hours = 0;
 				RefreshActual();
 			}
 			else Actual.Hours++;

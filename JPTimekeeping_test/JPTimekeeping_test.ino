@@ -21,13 +21,19 @@ enum I2C_ADDRESSESS
 
 JP::Timekeeping::Timekeeper RTC;
 
-const unsigned long TimeReadPeriod = 1000 * 60 * 30; // 30 min
+String TimeString;
+
+// const unsigned long TimeReadPeriod = 1000 * 60 * 30; // 30 min
 
 const unsigned long TimeRefreshPeriod = 1000; // 
 unsigned long LastTimeRefresh = 0;
 
-const int TimePrintPeriod = 1000; // 1 sec
-unsigned long LastTimePrint = 0;
+const int TimeStringChangePeriod = 1000 * 60; // 1 sec
+unsigned long NextTimeStringChange = 0;
+
+
+const int TestPrintPeriod = 1000 * 30;
+unsigned long LastTestPrint = 0;
 
 void setup() {
 
@@ -35,7 +41,6 @@ void setup() {
 	Serial.begin(9600);
 
 	DateTime::DateSeparator = '-';
-
 
 	RTC.Init(I2C_ADDRESSESS::RTC_MODULE);
 
@@ -55,31 +60,44 @@ void setup() {
 
 	RTC.RefreshActual();
 	auto dateTime = RTC.GetActual();
+	TimeString = dateTime.DateTimeToString();
+	LastTimeRefresh = dateTime.TimeRelatedMillis;
+
+	NextTimeStringChange = millis() + (60 * 1000) - (dateTime.Seconds * 1000);
+
 	Serial.print(dateTime.DateTimeToString());
 	Serial.print(" ");
 	Serial.print(dateTime.DayName());
 	Serial.println();
-
+	
 
 }
 
 // the loop function runs over and over again until power down or reset
 void loop() {
 
-	if (millis() - RTC.GetActual().TimeRelatedMillis > TimeReadPeriod)
+	// Device time - incremented by second
+	auto diff = millis() - LastTimeRefresh;
+	if (millis() - LastTimeRefresh >= TimeRefreshPeriod)
 	{
-		RTC.RefreshActual();
-	}
-	else if (millis() - LastTimeRefresh > TimeRefreshPeriod)
-	{
-		RTC.AddSecond();
-		LastTimeRefresh = millis();
+		auto secNumber = diff / 1000;
+		RTC.AddSecond(secNumber);
+		LastTimeRefresh += 1000;
 	}
 
-	if (millis() - LastTimePrint >= TimePrintPeriod)
+	// Change time string with one minute period
+	if (millis() >= NextTimeStringChange)
 	{
-		Serial.println(RTC.GetActual().TimeToString());
-		LastTimePrint = millis();
+		TimeString = RTC.GetActual().TimeToString();
+		NextTimeStringChange += (60 * 1000);
+	}
+
+
+	// Obecne prepisovani displaye
+	if (millis() - LastTestPrint >= TestPrintPeriod)
+	{
+		Serial.println(TimeString);
+		LastTestPrint = millis();
 	}
 
 }
