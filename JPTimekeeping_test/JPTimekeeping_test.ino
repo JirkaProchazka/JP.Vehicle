@@ -21,14 +21,16 @@ enum I2C_ADDRESSESS
 
 bool DisplayRefreshRequired = true;
 
-JP::Timekeeping::Timekeeper RTC;
+
+JP::Timekeeping::RTC_DS3231 RTC;
 
 //String TimeString;
+DateTime ActualTime;
 char* TimeChars = new char[6];
 char* TimeFormat = "%2d:%02d";
 
-const unsigned long TimeReadPeriod = 1000 * 60 * 10; // 10 min
 
+const unsigned long TimeReadPeriod = 1000 * 60 * 10; // 10 min
 
 const unsigned long TimeRefreshPeriod = 1000; // 
 unsigned long LastTimeRefresh = 0;
@@ -37,13 +39,14 @@ const int TimeStringChangePeriod = 1000 * 60; // 1 sec
 unsigned long NextTimeStringChange = 0;
 
 
+
+
 void setup() {
 
-	Wire.begin();
+	// Communication BUSes
 	Serial.begin(9600);
-
-
-
+	Wire.begin();
+	
 	RTC.Init(I2C_ADDRESSESS::RTC_MODULE);
 	DateTime::DateSeparator = '-';
 
@@ -59,32 +62,20 @@ void setup() {
 	//RTC.SetDateTime(30,42,21,4,26,11,14);
 	//RTC.SetDateTime(d);
 
-	RTC.RefreshActual();
-	auto dateTime = RTC.GetActual();
-	LastTimeRefresh = dateTime.TimeRelatedMillis;
-
-	// TimeString = dateTime.DateTimeToString();
-	dateTime.TimeToChar(TimeChars, TimeFormat);
-	NextTimeStringChange = LastTimeRefresh + (60 * 1000UL) - (dateTime.Seconds * 1000) + 200; //limit
+	LoadTimeFromRTC();
 
 	// Print time.
-	Serial.print(dateTime.DateTimeToString());
+	Serial.print(ActualTime.DateTimeToString());
 	Serial.print(" ");
-	Serial.println(dateTime.DayName());
+	Serial.println(ActualTime.DayName());
 }
 
 void loop() {
 
 	// Read RTC once per given time
-	if (millis() - RTC.GetActual().TimeRelatedMillis > TimeReadPeriod)
+	if (millis() - RTC.GetLastRead().TimeRelatedMillis > TimeReadPeriod)
 	{
-		RTC.RefreshActual();
-		auto dateTime = RTC.GetActual();
-		LastTimeRefresh = dateTime.TimeRelatedMillis;
-
-		// TimeString = dateTime.DateTimeToString();
-		dateTime.TimeToChar(TimeChars, TimeFormat);
-		NextTimeStringChange = LastTimeRefresh + (60 * 1000UL) - (dateTime.Seconds * 1000) + 200; //limit
+		LoadTimeFromRTC();
 	}
 
 	// Increment Device Time - once per second
@@ -92,18 +83,18 @@ void loop() {
 	if (diff >= TimeRefreshPeriod)
 	{
 		auto secNumber = diff / 1000;
-		RTC.AddSecond(secNumber);
+		ActualTime.AddSecond(secNumber);
 		LastTimeRefresh += 1000;
 
 		// Serial.print("Sec Incremented:  ");
-		Serial.println(RTC.GetActual().TimeToString());
+		Serial.println(RTC.GetLastRead().TimeToString());
 	}
 
 	// Change time string
 	if (millis() >= NextTimeStringChange)
 	{
-		// TimeString = RTC.GetActual().TimeToString();
-		RTC.GetActual().TimeToChar(TimeChars, TimeFormat);
+		// TimeString = RTC.GetLastRead().TimeToString();
+		RTC.GetLastRead().TimeToChar(TimeChars, TimeFormat);
 
 		NextTimeStringChange += (60 * 1000UL);
 		// Serial.println("TimeStringChanged");
@@ -112,7 +103,7 @@ void loop() {
 	}
 
 
-	// Vypis displaye
+	// print to output
 	if (DisplayRefreshRequired)
 	{
 		// Serial.println(TimeString);
@@ -121,4 +112,17 @@ void loop() {
 		DisplayRefreshRequired = false;
 	}
 
+}
+
+
+
+void LoadTimeFromRTC()
+{
+	RTC.RefreshTime();
+	ActualTime = RTC.GetLastRead();
+	LastTimeRefresh = ActualTime.TimeRelatedMillis;
+
+	// TimeString = dateTime.DateTimeToString();
+	ActualTime.TimeToChar(TimeChars, TimeFormat);
+	NextTimeStringChange = LastTimeRefresh + (60 * 1000UL) - (ActualTime.Seconds * 1000) + 200; //limit
 }

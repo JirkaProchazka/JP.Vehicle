@@ -14,9 +14,7 @@
 #include "WProgram.h"
 #endif
 
-
 #include "Wire.h"
-
 
 namespace JP
 {
@@ -26,9 +24,14 @@ namespace JP
 		{
 
 		public:
+
 			static char DateSeparator;
+			static char TimeSeparator;
 			static String DayNames[7];
-			static String DayNamesShort[7];
+			static char* DayNamesShort[7];
+			static byte LeapYears[];
+
+#pragma region DateTime Components
 
 			byte Year = 20;
 			byte Month = 1;
@@ -40,6 +43,126 @@ namespace JP
 
 			unsigned long TimeRelatedMillis = 0;
 
+			String DayName()
+			{
+				return DayNames[DayOfWeek - 1];
+			}
+			String DayNameShort()
+			{
+				return DayNamesShort[DayOfWeek - 1];
+			}
+
+#pragma endregion
+
+#pragma region Adjust Time
+
+			void AddSecond(byte seconds = 1)
+			{
+				for (size_t i = 0; i < seconds; i++)
+				{
+					if (Seconds >= 59)
+					{
+						Seconds = 0;
+						AddMinute();
+					}
+					else Seconds++;
+				}
+			}
+			void AddMinute()
+			{
+				if (Minutes >= 59)
+				{
+					Minutes = 0;
+					AddHour();
+				}
+				else Minutes++;
+			}
+			void AddHour()
+			{
+				if (Hours >= 23)
+				{
+					Hours = 0;
+					AddDay();
+				}
+				else Hours++;
+			}
+			void AddDay()
+			{
+				if (DayOfWeek >= 7)
+				{
+					DayOfWeek = 1;
+				}
+				else DayOfWeek++;
+
+				if (IsEndOfMonth())
+				{
+					DayOfMonth = 1;
+					AddMonth();
+				}
+				else DayOfMonth++;
+			}
+			void AddMonth()
+			{
+				if (Month == 12)
+				{
+					Month = 1;
+					AddYear();
+				}
+				else Month++;
+			}
+			void AddYear()
+			{
+				Year++;
+			}
+
+			bool IsEndOfMonth()
+			{
+				switch (Month)
+				{
+					case 2:
+					{
+						if (DayOfMonth >= 29 || ((DayOfMonth >= 28) && IsInLeapYear()))
+							return true;
+						break;
+					}
+					case 4:
+					case 6:
+					case 9:
+					case 11:
+					{
+						if (DayOfMonth >= 30)
+							return true;
+						break;
+					}
+					default:
+						if (DayOfMonth >= 31)
+							return true;
+						break;
+				}
+
+				return false;
+			}
+			bool IsInLeapYear()
+			{
+				switch (Year)
+				{
+					case 24:
+					case 28:
+					case 32:
+					case 36:
+					case 40:
+					case 44:
+					case 48:
+					case 52:
+						return true;
+				}
+
+				return false;
+			}
+
+#pragma endregion
+
+#pragma region DateTime Strings 
 
 			void TimeToChar(char*& buffer, char* format = "%2d:%02d:%02d")
 			{
@@ -48,11 +171,11 @@ namespace JP
 
 			String TimeToString()
 			{
-				return  GetLeadingZero(Hours, " ") + ":" + GetLeadingZero(Minutes) + ":" + GetLeadingZero(Seconds);
+				return  GetLeadingZero(Hours, " ") + TimeSeparator + GetLeadingZero(Minutes) + TimeSeparator + GetLeadingZero(Seconds);
 			}
 			String TimeShortToString()
 			{
-				return  GetLeadingZero(Hours, " ") + ":" + GetLeadingZero(Minutes);
+				return  GetLeadingZero(Hours, " ") + TimeSeparator + GetLeadingZero(Minutes);
 			}
 			String DateToString()
 			{
@@ -65,22 +188,14 @@ namespace JP
 				else return TimeToString() + " " + DateToString();
 			}
 
-
-			String DayName()
-			{
-				return DayNames[DayOfWeek-1];
-			}
-			String DayNameShort()
-			{
-				return DayNamesShort[DayOfWeek-1];
-			}
+#pragma endregion
 
 
 			// formating 
 			//
 			String GetLeadingZero(byte timePart, char* leadingChar = "0")
 			{
-				return (timePart < 10 ? leadingChar : "") + String(timePart, DEC);
+				return (timePart < 10 ? leadingChar : " ") + String(timePart, DEC);
 			}
 			void GetLeadingZeroFast(byte timePart, char* buffer)
 			{
@@ -89,17 +204,15 @@ namespace JP
 
 		};
 
-		class Timekeeper
+
+
+
+		class RTC_DS3231
 		{
 		private:
 			int I2C_ADDR;
 			int NUMBER_OF_TRANSMISSION_BYTES = 7;
-			DateTime Actual;
-
-			byte shortMonths[7] = { 1,3,5,7,8,10,12 };
-			byte longMonths[4] = { 4,6,9,11 };
-			bool IsEndOfMonth();
-			bool IsLeapYear();
+			DateTime LastRead;
 
 			void SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year, unsigned long relatedMillis);
 			void SetDevice(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year);
@@ -108,24 +221,15 @@ namespace JP
 		public:
 			void Init(int i2c_addr = 0x68);
 
-			// Get Time ---------------------------------
-			void RefreshActual();
-			DateTime GetActual();
-			void GetActual(DateTime* dateTime);
-			// Set Time ---------------------------------
+
+			void RefreshTime();
+			DateTime GetLastRead();
+			void GetLastRead(DateTime* dateTime);
+
 			void SetDateTime(DateTime dateTime, unsigned long relatedTime = millis());
-
-			void Timekeeper::AddSecond(byte seconds = 1);
-			void Timekeeper::AddMinute();
-			void Timekeeper::AddHour();
-			void Timekeeper::AddDay();
-			
-			void Timekeeper::AddMonth();
-			void Timekeeper::AddYear();
-
 		};
 
-		//extern Timekeeper Clock;
+		//extern RTC_DS3231 Clock;
 
 
 		// Converting
