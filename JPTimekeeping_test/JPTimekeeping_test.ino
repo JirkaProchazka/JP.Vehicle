@@ -5,9 +5,6 @@
 */
 
 
-
-
-// the setup function runs once when you press reset or power the board
 #include <Wire.h>
 #include <JPTimekeeping.h>
 
@@ -17,6 +14,10 @@ using namespace JP::Timekeeping;
 enum I2C_ADDRESSESS
 {
 	RTC_MODULE = 0x68,
+};
+enum PINS
+{
+
 };
 
 JP::Timekeeping::Timekeeper RTC;
@@ -75,7 +76,6 @@ void loop() {
 		RTC.AddSecond();
 		LastTimeRefresh = millis();
 	}
-
 	if (millis() - LastTimePrint >= TimePrintPeriod)
 	{
 		Serial.println(RTC.GetActual().TimeToString());
