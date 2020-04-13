@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "JPTimekeeping_test", "JPTim
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "JPLDR_test", "JPLDR_test\JPLDR_test.vcxproj", "{A955204F-A9BE-4682-A6CE-45D6E30EAFF1}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BulbWarmUp_test", "BulbWarmUp_test\BulbWarmUp_test.vcxproj", "{45E8E9E7-4585-4C7E-931D-2E2F09107B26}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		JPTimekeeping\JPTimekeeping.vcxitems*{c0160082-6b76-4bad-9a69-f245b4e1307a}*SharedItemsImports = 4
@@ -33,6 +35,10 @@ Global
 		{A955204F-A9BE-4682-A6CE-45D6E30EAFF1}.Debug|x86.Build.0 = Debug|Win32
 		{A955204F-A9BE-4682-A6CE-45D6E30EAFF1}.Release|x86.ActiveCfg = Release|Win32
 		{A955204F-A9BE-4682-A6CE-45D6E30EAFF1}.Release|x86.Build.0 = Release|Win32
+		{45E8E9E7-4585-4C7E-931D-2E2F09107B26}.Debug|x86.ActiveCfg = Debug|Win32
+		{45E8E9E7-4585-4C7E-931D-2E2F09107B26}.Debug|x86.Build.0 = Debug|Win32
+		{45E8E9E7-4585-4C7E-931D-2E2F09107B26}.Release|x86.ActiveCfg = Release|Win32
+		{45E8E9E7-4585-4C7E-931D-2E2F09107B26}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
