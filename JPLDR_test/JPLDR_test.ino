@@ -45,9 +45,12 @@ void setup() {
 	pinMode(PINS::LDR, INPUT);
 
 	// fill buffer with start values
-	for (int thisReading = 0; thisReading < SunBufferCapacity; thisReading++) {
-		SunBuffer[thisReading] = 0;
+	byte initValue = 255;
+	for (int index = 0; index < SunBufferCapacity; index++) {
+		SunBuffer[index] = initValue;
+		SunBuffer_Sum += initValue;
 	}
+	SunBuffer_Avg = initValue;
 }
 
 // the loop function runs over and over again until power down or reset
@@ -71,6 +74,8 @@ void loop() {
 
 		// decrease AD convert resolution 10bit -> 8bit
 		byte ldrRead = analogRead(PINS::LDR) >> 2;
+		int voltage = map(ldrRead, 0, 255, 0, 495);
+
 
 		// fill last value to specific number of buffer places
 		for (int i = 0; i < SumLastReadWeigh; i++)
@@ -99,7 +104,11 @@ void loop() {
 		
 		Serial.print("LDR: ");
 		Serial.print(ldrRead);
-		Serial.print(" - new AVG: ");
+
+		Serial.print(" \t V: ");
+		Serial.print(voltage);
+
+		Serial.print(" \t AVG: ");
 		Serial.print(newAvg);
 		Serial.println();
 	}
