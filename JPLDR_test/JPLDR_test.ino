@@ -13,65 +13,90 @@ enum PINS
 
 
 unsigned long LastSunRefresh = 0UL;
-const unsigned int SunRefreshPeriod = 300;
-const byte SunMinChange = 10;
-bool SunChanged = true;
+const unsigned int SunRefreshPeriod = 50;
 
-const byte SunReadNumber = 3;
+
+const byte SunBufferCapacity = 10;
 const byte SumLastReadWeigh = 2;
-byte SunBuffer[SunReadNumber];
+const byte SunMinChange = 5;
+
+byte SunBuffer[SunBufferCapacity];
 byte SunBuffer_Index = 0;
-byte SunBuffer_Sum = 0;
+int SunBuffer_Sum = 0;
 byte SunBuffer_Avg = 0;
 
-
-const int DARK_LIMIT = 20;
-const int BRIGHT_LIMIT = 200;
 const byte MAX_DASHBOARD_LIGHT = 240;
 
-const byte DARK_DASHBOARD_LIGHT = 50;
-const byte BRIGHT_DASHBOARD_LIGHT = 0;
+const byte DASHBOARD_DARK_LIGHT = 50;
+const byte DASHBOARD_BRIGHT_LIGHT = 0;
 
 
+
+byte blinker = 0;
+unsigned long LastBlink = 0;
+const int BlinkPeriod = 1000;
+
+bool RefreshBacklight = true;
 
 
 // the setup function runs once when you press reset or power the board
 void setup() {
 
 	Serial.begin(9600);
+
 	pinMode(PINS::LDR, INPUT);
 
-	for (int thisReading = 0; thisReading < SunReadNumber; thisReading++) {
-		SunBuffer[thisReading] = 0;
+	// fill buffer with start values
+	for (int thisReading = 0; thisReading < SunBufferCapacity; thisReading++) {
+		SunBuffer[thisReading] = 255;
 	}
 }
 
 // the loop function runs over and over again until power down or reset
 void loop() {
 
+	if (millis() - LastBlink >= BlinkPeriod)
+	{
+		LastBlink = millis();
+		blinker = ~blinker;
+		RefreshBacklight = true;
+
+		Serial.print("Blinker: ");
+		Serial.print(blinker);
+		Serial.println();
+	}
+
+
 	if (millis() - LastSunRefresh >= SunRefreshPeriod)
 	{
 		LastSunRefresh = millis();
 
-		byte ldrRead =  analogRead(PINS::LDR)>>2;
+		// decrease AD convert resolution 10bit -> 8bit
+		byte ldrRead = analogRead(PINS::LDR) >> 2;
 
-		for (int  i = 0; i < SumLastReadWeigh; i++)
+		// fill last value to specific number of buffer places
+		for (int i = 0; i < SumLastReadWeigh; i++)
 		{
 			SunBuffer_Sum -= SunBuffer[SunBuffer_Index];
 			SunBuffer_Sum += ldrRead;
 
 			SunBuffer[SunBuffer_Index] = ldrRead;
 
+			// move index
 			SunBuffer_Index++;
-			if (SunBuffer_Index >= SunReadNumber)
+			if (SunBuffer_Index == SunBufferCapacity)
 				SunBuffer_Index = 0;
 		}
 
-		int newAvg = SunBuffer_Sum / SunReadNumber;
+		// compute new average
+		int newAvg = SunBuffer_Sum / SunBufferCapacity;
 
-		SunChanged = abs(SunBuffer_Avg - newAvg) > SunMinChange;
-		if (SunChanged)
+
+		if (abs(SunBuffer_Avg - newAvg) > SunMinChange)
+		{
 			SunBuffer_Avg = newAvg;
+			RefreshBacklight = true;
+		}
 
 
 		Serial.print("LDR: ");
@@ -79,26 +104,20 @@ void loop() {
 		Serial.print(" - new AVG: ");
 		Serial.print(newAvg);
 		Serial.println();
+
 	}
 
-	if (SunChanged)
+	if (RefreshBacklight)
 	{
-		// DashBoard
-		/*
-		byte dashBoardLight = MAX_DASHBOARD_LIGHT;
-		if (LastSun <= DARK_LIMIT)
-			dashBoardLight = DARK_DASHBOARD_LIGHT;
-		else if (LastSun >= BRIGHT_LIMIT)
-			dashBoardLight = BRIGHT_DASHBOARD_LIGHT;
-		else
-		{
-			dashBoardLight = map(LastSun, 0, 1023, 0, 255);
-		}
-		*/
+		// general PWM settings - watch lower limit
+		byte backlightPWM = max(DASHBOARD_DARK_LIGHT, SunBuffer_Avg);
 
-		analogWrite(PINS::DASHBOARD_BACKLIGHT, SunBuffer_Avg);
+		// dashboard PWM - watch upper limit
+		byte dashboardBacklight = min(MAX_DASHBOARD_LIGHT, backlightPWM);
+		// dashboardBacklight &= blinker; // blinking for test purposes
+		analogWrite(PINS::DASHBOARD_BACKLIGHT, dashboardBacklight);
 
-		SunChanged = false;
+		RefreshBacklight = false;
 	}
 
 
