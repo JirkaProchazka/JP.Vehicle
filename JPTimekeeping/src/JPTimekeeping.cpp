@@ -11,41 +11,84 @@ namespace JP
 {
 	namespace Timekeeping
 	{
+
+#pragma region DateTime struct
+
 		// STATIC DECLARATION
 		char DateTime::DateSeparator = '-';
+		char DateTime::TimeSeparator = ':';
 
-		String DateTime::DayNames[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-		String DateTime::DayNamesShort[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+		String DateTime::DayNames[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+		char* DateTime::DayNamesShort[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+		byte DateTime::LeapYears[8] = { 24, 28, 32, 36, 40, 44, 48, 52 };
+
+#pragma endregion
 
 
-		void Timekeeper::Init(int i2c_addr = 0x68)
+#pragma region Timekeeper RTC
+
+		void RTC_DS3231::Init(int i2c_addr = 0x68)
 		{
 			I2C_ADDR = i2c_addr;
 
-			Actual.Year = 20;
-			Actual.Month = 1;
-			Actual.DayOfMonth = 1;
-			Actual.DayOfWeek = 3;
-			Actual.Hours = 0;
-			Actual.Minutes = 0;
-			Actual.Seconds = 0;
+			LastRead.Year = 20;
+			LastRead.Month = 1;
+			LastRead.DayOfMonth = 1;
+			LastRead.DayOfWeek = 3;
+			LastRead.Hours = 0;
+			LastRead.Minutes = 0;
+			LastRead.Seconds = 0;
+
+			LastRead.TimeRelatedMillis = 0;
 		}
 
-
-		void Timekeeper::SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year)
+		void RTC_DS3231::SetInnerActual(byte seconds, byte minutes, byte hours, byte dayOfWeek, byte dayOfMonth, byte month, byte year, unsigned long relatedMillis = millis())
 		{
-			Actual.Seconds = seconds;
-			Actual.Minutes = minutes;
-			Actual.Hours = hours;
-			Actual.DayOfWeek = dayOfWeek;
-			Actual.DayOfMonth = dayOfMonth;
-			Actual.Month = month;
-			Actual.Year = year;
+			LastRead.Seconds = seconds;
+			LastRead.Minutes = minutes;
+			LastRead.Hours = hours;
+			LastRead.DayOfWeek = dayOfWeek;
+			LastRead.DayOfMonth = dayOfMonth;
+			LastRead.Month = month;
+			LastRead.Year = year;
+
+			LastRead.TimeRelatedMillis = relatedMillis;
 		}
 
 
 
-		void Timekeeper::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year, unsigned long* relatedMillis) {
+
+		void RTC_DS3231::RefreshTime()
+		{
+			ReadDevice(&LastRead.Seconds, &LastRead.Minutes, &LastRead.Hours, &LastRead.DayOfWeek, &LastRead.DayOfMonth, &LastRead.Month, &LastRead.Year);
+			LastRead.TimeRelatedMillis = millis();
+		}
+
+		DateTime RTC_DS3231::GetLastRead()
+		{
+			return LastRead;
+		}
+		void RTC_DS3231::GetLastRead(DateTime* dateTime)
+		{
+			dateTime->Seconds = LastRead.Seconds;
+			dateTime->Minutes = LastRead.Minutes;
+			dateTime->Hours = LastRead.Hours;
+			dateTime->DayOfWeek = LastRead.DayOfWeek;
+			dateTime->DayOfMonth = LastRead.DayOfMonth;
+			dateTime->Month = LastRead.Month;
+			dateTime->Year = LastRead.Year;
+			dateTime->TimeRelatedMillis = LastRead.TimeRelatedMillis;
+		}
+		
+
+		void RTC_DS3231::SetDateTime(DateTime dateTime, unsigned long relatedTime = millis())
+		{
+			SetDevice(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
+			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year, relatedTime);
+		}
+
+
+		void RTC_DS3231::ReadDevice(byte* second, byte* minute, byte* hour, byte* dayOfWeek, byte* dayOfMonth, byte* month, byte* year) {
 			Wire.beginTransmission(I2C_ADDR);
 			Wire.write(0);							// set DS3231 register pointer to 00h
 			Wire.endTransmission();
@@ -59,40 +102,8 @@ namespace JP
 			*dayOfMonth = bcdToDec(Wire.read());
 			*month = bcdToDec(Wire.read());
 			*year = bcdToDec(Wire.read());
-			
-			*relatedMillis = millis();
 		}
-
-
-		void Timekeeper::RefreshActual()
-		{
-			ReadDevice(&Actual.Seconds, &Actual.Minutes, &Actual.Hours, &Actual.DayOfWeek, &Actual.DayOfMonth, &Actual.Month, &Actual.Year, &Actual.TimeRelatedMillis);
-		}
-
-		DateTime Timekeeper::GetActual()
-		{
-			return Actual;
-		}
-		void Timekeeper::GetActual(DateTime* dateTime)
-		{
-			dateTime->Seconds = Actual.Seconds;
-			dateTime->Minutes = Actual.Minutes;
-			dateTime->Hours = Actual.Hours;
-			dateTime->DayOfWeek = Actual.DayOfWeek;
-			dateTime->DayOfMonth = Actual.DayOfMonth;
-			dateTime->Month = Actual.Month;
-			dateTime->Year = Actual.Year;
-			dateTime->TimeRelatedMillis = Actual.TimeRelatedMillis;
-		}
-
-
-		void Timekeeper::SetDateTime(DateTime dateTime)
-		{
-			SetInnerActual(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
-			SetDevice(dateTime.Seconds, dateTime.Minutes, dateTime.Hours, dateTime.DayOfWeek, dateTime.DayOfMonth, dateTime.Month, dateTime.Year);
-		}
-
-		void Timekeeper::SetDevice(byte second, byte minute, byte hour, byte dayOfWeek, byte dayOfMonth, byte month, byte year) {
+		void RTC_DS3231::SetDevice(byte second, byte minute, byte hour, byte dayOfWeek, byte dayOfMonth, byte month, byte year) {
 
 			// sets time and date data to DS3231
 			Wire.beginTransmission(I2C_ADDR);
@@ -107,36 +118,11 @@ namespace JP
 			Wire.endTransmission();
 		}
 
-		void Timekeeper::AddSecond()
-		{
-			if (Actual.Seconds >= 59)
-			{
-				Actual.Seconds = 0;
-				AddMinute();
-			}
-			else Actual.Seconds++;
-		}
-		void Timekeeper::AddMinute()
-		{
-			if (Actual.Minutes >= 59)
-			{
-				Actual.Minutes = 0;
-				AddHour();
-			}
-			else Actual.Minutes++;
-		}
-		void Timekeeper::AddHour()
-		{
-			if (Actual.Hours >= 23)
-			{
-				RefreshActual();
-			}
-			else Actual.Hours++;
-		}
 
-		// GENERAL FUNCTION
+#pragma endregion	
 
-		// Converting
+
+		// Converting bytes 
 		//
 		byte decToBcd(byte val) {
 			return((val / 10 * 16) + (val % 10));
