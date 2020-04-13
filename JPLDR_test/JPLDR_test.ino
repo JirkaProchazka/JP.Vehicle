@@ -22,14 +22,12 @@ const byte SunMinChange = 5;
 
 byte SunBuffer[SunBufferCapacity];
 byte SunBuffer_Index = 0;
-int SunBuffer_Sum = 0;
+unsigned int SunBuffer_Sum = 0;
 byte SunBuffer_Avg = 0;
 
 const byte MAX_DASHBOARD_LIGHT = 240;
 
-const byte DASHBOARD_DARK_LIGHT = 50;
-const byte DASHBOARD_BRIGHT_LIGHT = 0;
-
+const byte DASHBOARD_DARK_LIGHT = 20;
 
 
 byte blinker = 0;
@@ -48,7 +46,7 @@ void setup() {
 
 	// fill buffer with start values
 	for (int thisReading = 0; thisReading < SunBufferCapacity; thisReading++) {
-		SunBuffer[thisReading] = 255;
+		SunBuffer[thisReading] = 0;
 	}
 }
 
@@ -98,13 +96,12 @@ void loop() {
 			RefreshBacklight = true;
 		}
 
-
+		
 		Serial.print("LDR: ");
 		Serial.print(ldrRead);
 		Serial.print(" - new AVG: ");
 		Serial.print(newAvg);
 		Serial.println();
-
 	}
 
 	if (RefreshBacklight)
