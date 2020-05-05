@@ -48,13 +48,15 @@ void setup() {
 	pinMode(PINS::TEST_SWITCH, INPUT_PULLUP);
 	pinMode(PINS::LED_TEST, OUTPUT);
 
+
+
 	noInterrupts();           // disable all interrupts
 	TCCR1A = 0;
 	TCCR1B = 0;
 	TCNT1 = 0;
 
-	OCR1A = 624;            // compare match register 16MHz/1024/1Hz
-	TCCR1B |= (1 << WGM12);   // CTC mode
+	OCR1A = 624;				// compare match register 16MHz/1024/1Hz
+	TCCR1B |= (1 << WGM12);		// CTC mode
 	TCCR1B |= (1 << CS12) | (0 << CS11) | (1 << CS10); // 1024 prescaler 
 	//TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
 	interrupts();             // enable all interrupts
