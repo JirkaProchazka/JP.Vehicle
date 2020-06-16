@@ -8,7 +8,6 @@
 #define OFF LOW;
 
 
-
 enum PINS
 {
 	L_TURN_SW = 12,
@@ -43,6 +42,8 @@ FLASHES Mode = FLASHES::NO_FLASH;
 
 // Inpus
 
+const int DEBOUNCE_PROTECTION = 150;
+
 bool Act_RTurnSw = OFF;
 bool Act_LTurnSw = OFF;
 bool Act_WarnSw = OFF;
@@ -55,7 +56,6 @@ unsigned long LastTime_RTurnSw = 0;
 unsigned long LastTime_LTurnSw = 0;
 unsigned long LastTime_WarnSw = 0;
 
-const int DEBOUNCE_PROTECTION = 150;
 
 
 const int FAST_BLINK_ON_TIME = 250;
@@ -68,12 +68,9 @@ int Actual_Blink_On_Time = FAST_BLINK_ON_TIME;
 int Actual_Blink_Off_Time = FAST_BLINK_OFF_TIME;
 
 
-
 unsigned long LastTime_R_Toggle = 0;
 unsigned long LastTime_L_Toggle = 0;
 unsigned long LastTime_Warn_Toggle = 0;
-
-
 
 bool L_Lights_State = OFF;
 bool R_Lights_State = OFF;
@@ -96,6 +93,10 @@ void Set_Warn_Light(bool state)
 {
 	Set_R_Light(state);
 	Set_L_Light(state);
+}
+void Set_Output_Port(byte portBits)
+{
+	// todo: ZAPIS DO PORTU
 }
 
 
@@ -190,7 +191,7 @@ void loop() {
 			case FLASHES::NO_FLASH:
 			default:
 			{
-				Set_Warn_Light(HIGH);
+				
 			}
 			break;
 		}
@@ -229,11 +230,11 @@ void loop() {
 		{
 			if (R_Lights_State && (millis() - LastTime_L_Toggle > Actual_Blink_On_Time))
 			{
-				Set_L_Light(LOW);
+				Set_Warn_Light(LOW);
 			}
 			else if (!L_Lights_State && (millis() - LastTime_L_Toggle > Actual_Blink_Off_Time))
 			{
-				Set_L_Light(HIGH);
+				Set_Warn_Light(HIGH);
 			}
 		}
 		break;
