@@ -4,8 +4,11 @@
  Author:	JP
  */
 
-#define ON HIGH;
-#define OFF LOW;
+constexpr bool ON = 0x1;
+constexpr bool OFF = 0x0;
+constexpr bool NEVER = 0x0;
+constexpr bool RELEASED = 0x0;
+constexpr bool PUSHED = 0x1;
 
 // chip pins
 
@@ -36,14 +39,15 @@ DEVICE_MODES Mode = DEVICE_MODES::NO_FLASH;
 
 const int DEBOUNCE_PROTECTION_TIME = 150;
 
-bool Act_RTurnSw = OFF;
-bool Act_LTurnSw = OFF;
+bool R_Sw_Last = RELEASED;
+bool L_Sw_LastState = RELEASED;
 
-bool Last_RTurnSw = OFF;
-bool Last_LTurnSw = OFF;
+bool R_Sw_Stable = RELEASED;
+bool L_Sw_Stable = RELEASED;
 
-unsigned long LastTime_RTurnSw = 0;
-unsigned long LastTime_LTurnSw = 0;
+unsigned long R_Sw_LastReadChangeTime = NEVER;
+unsigned long L_Sw_LastReadChangeTime = NEVER;
+
 
 
 const int DEF_BLINK_ON_TIME = 250;
@@ -59,13 +63,8 @@ int Actual_Blink_Off_Time = DEF_BLINK_OFF_TIME;
 int BlickCounter = 0;
 
 
-unsigned long LastTime_R_Toggle = 0;
-unsigned long LastTime_L_Toggle = 0;
-unsigned long LastTime_Warn_Toggle = 0;
-
-bool L_Lights_State = OFF;
-bool R_Lights_State = OFF;
-bool Warn_Lights_State = OFF;
+bool Lights_State = OFF;
+unsigned long LastTime_Toggle = NEVER;
 
 
 
@@ -74,22 +73,22 @@ bool Warn_Lights_State = OFF;
 
 void Set_R_Light(bool state)
 {
-	R_Lights_State = state;
-	LastTime_R_Toggle = millis();
+	Lights_State = state;
+	LastTime_Toggle = millis();
 	
 	digitalWrite(PINS::R_LIGHTS, state);
 }
 void Set_L_Light(bool state)
 {
-	L_Lights_State = state;
-	LastTime_L_Toggle = millis();
+	Lights_State = state;
+	LastTime_Toggle = millis();
 	
 	digitalWrite(PINS::L_LIGHTS, state);
 }
 void Set_Warn_Light(bool state)
 {
-	Warn_Lights_State = state;
-	LastTime_Warn_Toggle = millis();
+	Lights_State = state;
+	LastTime_Toggle = millis();
 
 	digitalWrite(PINS::R_LIGHTS, state);
 	digitalWrite(PINS::L_LIGHTS, state);
@@ -132,34 +131,45 @@ void loop() {
 
 	// Read inputs =======================================
 
-	Act_RTurnSw = digitalRead(R_TURN_SW);	// TODO: Read port instead of digitalRead()
-	Act_LTurnSw = digitalRead(L_TURN_SW);
-		
+	bool act_R_Sw = digitalRead(R_TURN_SW);	// TODO: Read port instead of digitalRead()
+	bool act_L_Sw = digitalRead(L_TURN_SW);
+			
+	if (act_R_Sw != R_Sw_Last && (millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+	{
+		R_Sw_Last = act_R_Sw;
+		R_Sw_LastReadChangeTime = millis();
+	}
+	if (act_L_Sw != L_Sw_LastState && (millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+	{
+		L_Sw_LastState = act_L_Sw;
+		L_Sw_LastReadChangeTime = millis();
+	}
 
-	DEVICE_MODES actMode = DEVICE_MODES::NO_FLASH;
 
 	// Set mode according INPUTS =========================
 
-	if (Act_RTurnSw != Last_RTurnSw && (millis() - LastTime_RTurnSw > DEBOUNCE_PROTECTION_TIME))
+	DEVICE_MODES actMode = DEVICE_MODES::NO_FLASH;
+
+	
+	if (R_Sw_Stable != act_R_Sw && millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
 	{
-		Last_RTurnSw = Act_RTurnSw;
-		LastTime_RTurnSw = millis();
-
-		actMode = Act_RTurnSw ? DEVICE_MODES::R_FLASH : DEVICE_MODES::NO_FLASH;
+		R_Sw_Stable == act_R_Sw;
+		
+		actMode = act_R_Sw ? DEVICE_MODES::R_FLASH : DEVICE_MODES::NO_FLASH;
 	}
-	if (Act_LTurnSw != Last_LTurnSw && (millis() - LastTime_LTurnSw > DEBOUNCE_PROTECTION_TIME))
+	if (L_Sw_Stable != act_L_Sw && millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
 	{
-		Last_LTurnSw = Act_LTurnSw;
-		LastTime_LTurnSw = millis();
+		L_Sw_Stable == act_L_Sw;
 
-		actMode = Act_LTurnSw ? DEVICE_MODES::L_FLASH : DEVICE_MODES::NO_FLASH;
+		actMode = act_L_Sw ? DEVICE_MODES::R_FLASH : DEVICE_MODES::NO_FLASH;
 	}
 
-	if (Last_RTurnSw && Last_LTurnSw)
+	
+	if (R_Sw_Stable && L_Sw_Stable)
 	{
 		actMode = DEVICE_MODES::WARN_FLASH;
 	}
-	if (!Last_RTurnSw && !Last_LTurnSw)
+	if (!R_Sw_Stable && !L_Sw_Stable)
 	{
 		actMode = DEVICE_MODES::NO_FLASH;
 	}
@@ -169,13 +179,11 @@ void loop() {
 
 	if (actMode != Mode)
 	{
+		Lights_State = OFF;
 		BlickCounter = 0;
 		Actual_Blink_On_Time = DEF_BLINK_ON_TIME;
 		Actual_Blink_Off_Time = DEF_BLINK_OFF_TIME;
-
-		Warn_Lights_State = OFF;
-		L_Lights_State = OFF;
-		R_Lights_State = OFF;
+				
 
 		switch (actMode)
 		{
@@ -211,75 +219,60 @@ void loop() {
 	}
 
 
-	// Handle actual mode ===============================
+	// Handle flashing mode ===============================
 	{
-		bool new_r_state = R_Lights_State;
-		bool new_l_state = L_Lights_State;
-		bool new_warn_state = Warn_Lights_State;
+		bool new_state = Lights_State;
 
-		switch (Mode)
+		if (Mode != DEVICE_MODES::NO_FLASH)
 		{
-			case DEVICE_MODES::R_FLASH:
+			if (Lights_State && (millis() - LastTime_Toggle > Actual_Blink_On_Time))
 			{
-				if (R_Lights_State && (millis() - LastTime_R_Toggle > Actual_Blink_On_Time))
-				{
-					new_r_state = OFF;
-				}
-				else if (!R_Lights_State && (millis() - LastTime_R_Toggle > Actual_Blink_Off_Time))
-				{
-					new_r_state = ON;
-					HnadleBlickCounter();
-				}
+				new_state = OFF;
 			}
-			break;
-			case DEVICE_MODES::L_FLASH:
+			else if (!Lights_State && (millis() - LastTime_Toggle > Actual_Blink_Off_Time))
 			{
-				if (L_Lights_State && (millis() - LastTime_L_Toggle > Actual_Blink_On_Time))
-				{
-					new_l_state = OFF;
-				}
-				else if (!L_Lights_State && (millis() - LastTime_L_Toggle > Actual_Blink_Off_Time))
-				{
-					new_l_state = ON;
-					HnadleBlickCounter();
-				}
+				new_state = ON;
+				HnadleBlickCounter();
 			}
-			break;
-			case DEVICE_MODES::WARN_FLASH:
-			{
-				if (Warn_Lights_State && (millis() - LastTime_Warn_Toggle > Actual_Blink_On_Time))
-				{
-					new_warn_state = OFF;
-				}
-				else if (!Warn_Lights_State && (millis() - LastTime_Warn_Toggle > Actual_Blink_Off_Time))
-				{
-					new_warn_state = ON;
-					HnadleBlickCounter();
-				}
-			}
-			break;
-			case DEVICE_MODES::NO_FLASH:
-			default:
-			{ /* Nothing to do here. */ }
-			break;
 		}
 
 
-		// Set outputs =========================================
+		// Set Lights =========================================
 		// 
 
-		if (new_warn_state != Warn_Lights_State)
+
+		if (new_state != Lights_State)
 		{
-			Set_Warn_Light(new_l_state);
+			switch (Mode)
+			{
+				case DEVICE_MODES::R_FLASH:
+				{
+					Set_R_Light(new_state);
+				}
+				break;
+
+				case DEVICE_MODES::L_FLASH:
+				{
+					Set_L_Light(new_state);
+				}
+				break;
+
+				case DEVICE_MODES::WARN_FLASH:
+				{
+					Set_Warn_Light(new_state);
+				}
+				break;
+
+				case DEVICE_MODES::NO_FLASH:
+				default:
+				{
+					
+				}
+				break;
+			}
 		}
-		else if (new_l_state != L_Lights_State)
-		{
-			Set_L_Light(new_l_state);
-		}
-		else if (new_r_state != R_Lights_State)
-		{
-			Set_R_Light(new_r_state);
-		}
+
+		
 	}
 }
 
