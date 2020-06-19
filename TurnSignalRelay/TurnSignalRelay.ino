@@ -4,11 +4,30 @@
  Author:	JP
  */
 
+ // DEFINICITON
+
 constexpr bool ON = 0x1;
 constexpr bool OFF = 0x0;
 constexpr bool NEVER = 0x0;
 constexpr bool RELEASED = 0x0;
 constexpr bool PUSHED = 0x1;
+
+// PORT DEFINITION
+
+#define PORT_OUT PORTD
+#define OUT_LIGHTS_MASK B00000011
+
+#define PORT_IN PORTB
+#define IN_SW_MASK B00000011
+
+
+enum LIGHT_SCHEMA
+{
+	NONE = B00, 
+	RIGHT = B01,
+	LEFT = B10,
+	BOTH = B11,
+};
 
 // chip pins
 
@@ -16,26 +35,27 @@ enum PINS
 {
 	L_TURN_SW = 12,
 	R_TURN_SW = 11,
-	WARN_SW = 13,
 
 	L_LIGHTS = A5,
 	R_LIGHTS = A4,
 };
 
 // device modes
-enum DEVICE_MODES
+enum RELAY_MODES
 {
-	NO_FLASH = 0,
+	IDLE = 0,
 	R_FLASH = 1,
 	L_FLASH = 2,
 	WARN_FLASH = 3,
+	EMERG_BREAK = 4,
 };
+
+
 
 
 // ************************************************************************************************************
 
-DEVICE_MODES Mode = DEVICE_MODES::NO_FLASH;
-
+RELAY_MODES Mode = RELAY_MODES::IDLE;
 
 const int DEBOUNCE_PROTECTION_TIME = 150;
 
@@ -48,24 +68,21 @@ bool L_Sw_Stable = RELEASED;
 unsigned long R_Sw_LastReadChangeTime = NEVER;
 unsigned long L_Sw_LastReadChangeTime = NEVER;
 
+const int START_BLINK_ON_TIME = 250;
+const int START_BLINK_OFF_TIME = 250;
+
+const int FLASH_COUNTER_INCREMENT_LIMIT = 2;
+const int FLASH_ON_INCREMENT_TIME = 100;
+const int FLASH_OFF_INCREMENT_TIME = 100;
+
+int Flash_ON_Time = START_BLINK_ON_TIME;
+int Flash_OFF_Time = START_BLINK_OFF_TIME;
+
+int FlashCounter = 0;
 
 
-const int DEF_BLINK_ON_TIME = 250;
-const int DEF_BLINK_OFF_TIME = 250;
-
-const int ADD_DELAY_BLINKS = 2;
-const int BLINK_ON_DELAY = 100;
-const int BLINK_OFF_DELAY = 100;
-
-int Actual_Blink_On_Time = DEF_BLINK_ON_TIME;
-int Actual_Blink_Off_Time = DEF_BLINK_OFF_TIME;
-
-int BlickCounter = 0;
-
-
-bool Lights_State = OFF;
+bool Flash_State = OFF;
 unsigned long LastTime_Toggle = NEVER;
-
 
 
 // ************************************************************************************************************
@@ -73,42 +90,42 @@ unsigned long LastTime_Toggle = NEVER;
 
 void Set_R_Light(bool state)
 {
-	Lights_State = state;
-	LastTime_Toggle = millis();
-	
-	digitalWrite(PINS::R_LIGHTS, state);
+	digitalWrite(PINS::R_LIGHTS, state);	
 }
 void Set_L_Light(bool state)
 {
-	Lights_State = state;
-	LastTime_Toggle = millis();
-	
 	digitalWrite(PINS::L_LIGHTS, state);
 }
-void Set_Warn_Light(bool state)
+void Set_Both_Lights(bool state)
 {
-	Lights_State = state;
-	LastTime_Toggle = millis();
-
 	digitalWrite(PINS::R_LIGHTS, state);
 	digitalWrite(PINS::L_LIGHTS, state);
 }
-void TurnOffLights()
-{
-	bool offState = OFF;
-	digitalWrite(PINS::R_LIGHTS, offState);
-	digitalWrite(PINS::L_LIGHTS, offState);
+
+
+void Set_Port_Out(LIGHT_SCHEMA schema)
+{	
+	auto maskedPort = PORT_OUT & ~OUT_LIGHTS_MASK;	// lights bits cleared;
+	PORT_OUT = maskedPort | schema;					// lights bits set 
 }
 
-void HnadleBlickCounter()
-{
-	BlickCounter++;
 
-	if (BlickCounter == ADD_DELAY_BLINKS)
+void HandleFlashTime()
+{
+	FlashCounter++;
+
+	if (FlashCounter == FLASH_COUNTER_INCREMENT_LIMIT)
 	{
-		Actual_Blink_On_Time += BLINK_ON_DELAY;
-		Actual_Blink_Off_Time += BLINK_OFF_DELAY;
+		Flash_ON_Time += FLASH_ON_INCREMENT_TIME;
+		Flash_OFF_Time += FLASH_OFF_INCREMENT_TIME;
 	}
+}
+
+void ResetFlashTime()
+{
+	FlashCounter = 0;
+	Flash_ON_Time = START_BLINK_ON_TIME;
+	Flash_OFF_Time = START_BLINK_OFF_TIME;
 }
 
 
@@ -119,6 +136,7 @@ void setup() {
 	// INPUT pins
 	pinMode(R_TURN_SW, INPUT);
 	pinMode(L_TURN_SW, INPUT);
+	
 	// OUTPUT pins
 	pinMode(R_LIGHTS, OUTPUT);
 	pinMode(L_LIGHTS, OUTPUT);
@@ -133,13 +151,13 @@ void loop() {
 
 	bool act_R_Sw = digitalRead(R_TURN_SW);	// TODO: Read port instead of digitalRead()
 	bool act_L_Sw = digitalRead(L_TURN_SW);
-			
-	if (act_R_Sw != R_Sw_Last && (millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+
+	if (act_R_Sw != R_Sw_Last)
 	{
 		R_Sw_Last = act_R_Sw;
 		R_Sw_LastReadChangeTime = millis();
 	}
-	if (act_L_Sw != L_Sw_LastState && (millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+	if (act_L_Sw != L_Sw_LastState)
 	{
 		L_Sw_LastState = act_L_Sw;
 		L_Sw_LastReadChangeTime = millis();
@@ -148,30 +166,30 @@ void loop() {
 
 	// Set mode according INPUTS =========================
 
-	DEVICE_MODES actMode = DEVICE_MODES::NO_FLASH;
+	RELAY_MODES actMode = RELAY_MODES::IDLE;
 
-	
+
 	if (R_Sw_Stable != act_R_Sw && millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
 	{
 		R_Sw_Stable == act_R_Sw;
-		
-		actMode = act_R_Sw ? DEVICE_MODES::R_FLASH : DEVICE_MODES::NO_FLASH;
+
+		actMode = act_R_Sw ? RELAY_MODES::R_FLASH : RELAY_MODES::IDLE;
 	}
 	if (L_Sw_Stable != act_L_Sw && millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
 	{
 		L_Sw_Stable == act_L_Sw;
 
-		actMode = act_L_Sw ? DEVICE_MODES::R_FLASH : DEVICE_MODES::NO_FLASH;
+		actMode = act_L_Sw ? RELAY_MODES::R_FLASH : RELAY_MODES::IDLE;
 	}
 
-	
+
 	if (R_Sw_Stable && L_Sw_Stable)
 	{
-		actMode = DEVICE_MODES::WARN_FLASH;
+		actMode = RELAY_MODES::WARN_FLASH;
 	}
 	if (!R_Sw_Stable && !L_Sw_Stable)
 	{
-		actMode = DEVICE_MODES::NO_FLASH;
+		actMode = RELAY_MODES::IDLE;
 	}
 
 
@@ -179,38 +197,46 @@ void loop() {
 
 	if (actMode != Mode)
 	{
-		Lights_State = OFF;
-		BlickCounter = 0;
-		Actual_Blink_On_Time = DEF_BLINK_ON_TIME;
-		Actual_Blink_Off_Time = DEF_BLINK_OFF_TIME;
-				
+		Flash_State = OFF;
+		ResetFlashTime();
 
 		switch (actMode)
 		{
-			case DEVICE_MODES::R_FLASH:
+			case RELAY_MODES::R_FLASH:
 			{
-				Set_R_Light(HIGH);
-				Set_L_Light(LOW);
+				// Set_R_Light(HIGH);
+				// Set_L_Light(LOW);
+				Set_Port_Out(LIGHT_SCHEMA::RIGHT);
 			}
 			break;
 
-			case DEVICE_MODES::L_FLASH:
+			case RELAY_MODES::L_FLASH:
 			{
-				Set_R_Light(LOW);
-				Set_L_Light(HIGH);
+				// Set_R_Light(LOW);
+				// Set_L_Light(HIGH);
+				Set_Port_Out(LIGHT_SCHEMA::LEFT);
 			}
 			break;
 
-			case DEVICE_MODES::WARN_FLASH:
+			case RELAY_MODES::WARN_FLASH:
 			{
-				Set_Warn_Light(HIGH);
+				// Set_Both_Lights(HIGH);
+				Set_Port_Out(LIGHT_SCHEMA::BOTH);
 			}
 			break;
 
-			case DEVICE_MODES::NO_FLASH:
+			case RELAY_MODES::EMERG_BREAK:
+			{
+				// Set_Both_Lights(HIGH);
+				Set_Port_Out(LIGHT_SCHEMA::BOTH);
+			}
+			break;
+
+			case RELAY_MODES::IDLE:
 			default:
 			{
-				TurnOffLights();
+				// Set_Both_Lights(OFF);
+				Set_Port_Out(LIGHT_SCHEMA::NONE);
 			}
 			break;
 		}
@@ -221,18 +247,18 @@ void loop() {
 
 	// Handle flashing mode ===============================
 	{
-		bool new_state = Lights_State;
+		bool new_flash_state = Flash_State;
 
-		if (Mode != DEVICE_MODES::NO_FLASH)
+		if (Mode != RELAY_MODES::IDLE)
 		{
-			if (Lights_State && (millis() - LastTime_Toggle > Actual_Blink_On_Time))
+			if (Flash_State && (millis() - LastTime_Toggle > Flash_ON_Time))
 			{
-				new_state = OFF;
+				new_flash_state = OFF;
 			}
-			else if (!Lights_State && (millis() - LastTime_Toggle > Actual_Blink_Off_Time))
+			else if (!Flash_State && (millis() - LastTime_Toggle > Flash_OFF_Time))
 			{
-				new_state = ON;
-				HnadleBlickCounter();
+				new_flash_state = ON;
+				HandleFlashTime();
 			}
 		}
 
@@ -241,38 +267,51 @@ void loop() {
 		// 
 
 
-		if (new_state != Lights_State)
+		if (new_flash_state != Flash_State)
 		{
 			switch (Mode)
 			{
-				case DEVICE_MODES::R_FLASH:
+				case RELAY_MODES::R_FLASH:
 				{
-					Set_R_Light(new_state);
+					// Set_R_Light(new_flash_state);
+					Set_Port_Out(new_flash_state ? LIGHT_SCHEMA::RIGHT : LIGHT_SCHEMA::NONE);
 				}
 				break;
 
-				case DEVICE_MODES::L_FLASH:
+				case RELAY_MODES::L_FLASH:
 				{
-					Set_L_Light(new_state);
+					// Set_L_Light(new_flash_state);
+					Set_Port_Out(new_flash_state ? LIGHT_SCHEMA::LEFT : LIGHT_SCHEMA::NONE);
 				}
 				break;
 
-				case DEVICE_MODES::WARN_FLASH:
+				case RELAY_MODES::WARN_FLASH:
 				{
-					Set_Warn_Light(new_state);
+					// Set_Both_Lights(new_flash_state);
+					Set_Port_Out(new_flash_state ? LIGHT_SCHEMA::BOTH : LIGHT_SCHEMA::NONE);
 				}
 				break;
 
-				case DEVICE_MODES::NO_FLASH:
+				case RELAY_MODES:: EMERG_BREAK:
+				{
+					// Set_Both_Lights(new_flash_state);
+					Set_Port_Out(new_flash_state ? LIGHT_SCHEMA::BOTH : LIGHT_SCHEMA::NONE);
+				}
+				break;
+
+				case RELAY_MODES::IDLE:
 				default:
 				{
-					
+					// nothing to do here
 				}
 				break;
 			}
+
+			Flash_State = new_flash_state;
+			LastTime_Toggle = millis();
 		}
 
-		
+
 	}
 }
 
