@@ -4,26 +4,30 @@
  Author:	JP
  */
 
+#define INVERSE_OUTPUT true
+#define OUTPUT_BY_PORT true
+
  // DEFINICITON OF EXPRESSIONS
 
-constexpr bool ON = 0x1;
-constexpr bool OFF = 0x0;
-constexpr bool NEVER = 0x0;
-constexpr bool RELEASED = 0x0;
-constexpr bool PUSHED = 0x1;
+constexpr bool ON = !INVERSE_OUTPUT;
+constexpr bool OFF = !ON;
+
+constexpr bool RELEASED = true;
+constexpr bool PUSHED = !RELEASED;
+
+constexpr unsigned long RESET_TIME = 0x0;
 
 // PORT DEFINITION
 
 // ARDUINO PINS
 enum PINS
 {
-	L_TURN_SW = 12,
-	R_TURN_SW = 11,
+	L_TURN_SW = 8,
+	R_TURN_SW = 9,
 
-	L_LIGHTS = A5,
-	R_LIGHTS = A4,
+	L_LIGHTS = 4,
+	R_LIGHTS = 5,
 };
-
 
 // Inputs
 
@@ -33,11 +37,29 @@ constexpr byte L_SWITCH_PORT_MASK = (1 << PINB1);
 
 // Outputs
 
-#define OUTPUT_PORT PORTD
-constexpr byte R_LIGHT_PIN_MASK = (1 << PIND0);
-constexpr byte L_LIGHT_PIN_MASK = (1 << PIND1);
-constexpr byte LIGHTS_PORT_MASK = ~(L_LIGHT_PIN_MASK | R_LIGHT_PIN_MASK);
+#if OUTPUT_BY_PORT
 
+#if INVERSE_OUTPUT
+
+#define OUTPUT_PORT PORTD
+constexpr byte R_LIGHT_PIN_MASK = ~(1 << PIND4);
+constexpr byte L_LIGHT_PIN_MASK = ~(1 << PIND5);
+constexpr byte LIGHTS_PORT_MASK = L_LIGHT_PIN_MASK & R_LIGHT_PIN_MASK;
+
+enum LIGHTS_OUTPUT
+{
+	NONE = B11111111,
+	RIGHT = R_LIGHT_PIN_MASK,
+	LEFT = L_LIGHT_PIN_MASK,
+	BOTH = (RIGHT & LEFT),
+};
+
+#else
+
+#define OUTPUT_PORT PORTD
+constexpr byte R_LIGHT_PIN_MASK = (1 << PIND4);
+constexpr byte L_LIGHT_PIN_MASK = (1 << PIND5);
+constexpr byte LIGHTS_PORT_MASK = ~(L_LIGHT_PIN_MASK | R_LIGHT_PIN_MASK);
 
 enum LIGHTS_OUTPUT
 {
@@ -46,6 +68,9 @@ enum LIGHTS_OUTPUT
 	LEFT = L_LIGHT_PIN_MASK,
 	BOTH = (RIGHT | LEFT),
 };
+
+#endif
+#endif
 
 
 // device modes
@@ -57,7 +82,6 @@ enum RELAY_MODES
 	WARN_FLASH = 3,
 	EMERG_BREAK = 4,
 };
-
 
 
 // =============================================================================================================
@@ -75,8 +99,8 @@ bool L_Sw_LastState = RELEASED;
 bool R_Sw_Stable = RELEASED;
 bool L_Sw_Stable = RELEASED;
 
-unsigned long R_Sw_LastReadChangeTime = NEVER;
-unsigned long L_Sw_LastReadChangeTime = NEVER;
+unsigned long R_Sw_LastReadChangeTime = RESET_TIME;
+unsigned long L_Sw_LastReadChangeTime = RESET_TIME;
 
 
 // - flashing variables ----------------------------
@@ -84,7 +108,7 @@ unsigned long L_Sw_LastReadChangeTime = NEVER;
 const int START_BLINK_ON_TIME = 250;
 const int START_BLINK_OFF_TIME = 250;
 
-const int FLASH_COUNTER_INCREMENT_LIMIT = 2;
+const int FLASH_COUNTER_INCREMENT_LIMIT = 3;
 
 const int FLASH_ON_INCREMENT_TIME = 100;
 const int FLASH_OFF_INCREMENT_TIME = 100;
@@ -95,19 +119,22 @@ int Flash_OFF_Time = START_BLINK_OFF_TIME;
 int FlashCounter = 0;
 
 bool Flash_State = OFF;
-unsigned long LastTime_Toggle = NEVER;
+unsigned long Flash_LastTime = RESET_TIME;
 
 
 // =============================================================================================================
 
 // Setup output pins
 
+#if OUTPUT_BY_PORT
+
 void Set_Port_Out(LIGHTS_OUTPUT output)
 {
-	auto maskedPort = OUTPUT_PORT & LIGHTS_PORT_MASK;	// lights bits cleared;
-	OUTPUT_PORT = maskedPort | output;					// lights bits set 
+	byte maskedPort = OUTPUT_PORT & LIGHTS_PORT_MASK;
+	OUTPUT_PORT = maskedPort | output;
 }
 
+#else
 
 void Set_R_Light(bool state)
 {
@@ -122,6 +149,8 @@ void Set_Both_Lights(bool state)
 	digitalWrite(PINS::R_LIGHTS, state);
 	digitalWrite(PINS::L_LIGHTS, state);
 }
+
+#endif
 
 // -----------------------------------------------------
 
@@ -145,33 +174,46 @@ void ResetFlashTime()
 
 
 // =============================================================================================================
+// =============================================================================================================
+
 
 void setup() {
 
+	//Serial.begin(9600);
+
+#if OUTPUT_BY_PORT
+	Set_Port_Out(LIGHTS_OUTPUT::NONE);
+#else
+	Set_Both_Lights(OFF);
+#endif 
+
+
 	// INPUT pins
-	pinMode(R_TURN_SW, INPUT);
-	pinMode(L_TURN_SW, INPUT);
+	pinMode(R_TURN_SW, INPUT_PULLUP);
+	pinMode(L_TURN_SW, INPUT_PULLUP);
 
 	// OUTPUT pins
 	pinMode(R_LIGHTS, OUTPUT);
 	pinMode(L_LIGHTS, OUTPUT);
+
 }
 
 
 // =============================================================================================================
+// =============================================================================================================
+
 
 void loop() {
 
 	// - read inputs ---------------------------------------
 
+#if OUTPUT_BY_PORT
 	bool act_R_Sw = INPUT_PORT & R_SWITCH_PORT_MASK;
 	bool act_L_Sw = INPUT_PORT & L_SWITCH_PORT_MASK;
-
-	/*
+#else
 	bool act_R_Sw = digitalRead(R_TURN_SW);
 	bool act_L_Sw = digitalRead(L_TURN_SW);
-	*/
-
+#endif
 
 	// - handle read chanbge -------------------------------
 
@@ -180,119 +222,129 @@ void loop() {
 		R_Sw_LastState = act_R_Sw;
 		R_Sw_LastReadChangeTime = millis();
 	}
+
 	if (act_L_Sw != L_Sw_LastState)
 	{
 		L_Sw_LastState = act_L_Sw;
 		L_Sw_LastReadChangeTime = millis();
 	}
 
-	// -----------------------------------------------------
+	// - handle stable changes ------------------------------
 
-	RELAY_MODES actMode = Mode;
+	bool inputChange = false;
+	if ((R_Sw_Stable != R_Sw_LastState) && (millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+	{
+		R_Sw_Stable = R_Sw_LastState;
+		inputChange = true;
+	}
+	if ((L_Sw_Stable != L_Sw_LastState) && (millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME))
+	{
+		L_Sw_Stable = L_Sw_LastState;
+		inputChange = true;
+	}
 
 
 	// Set mode if input changed ---------------------------
+	//
 
-	if (R_Sw_Stable != act_R_Sw && millis() - R_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
+	RELAY_MODES actMode = Mode;
+
+	if (inputChange)
 	{
-		R_Sw_Stable == act_R_Sw;
-
-		actMode = act_R_Sw ? RELAY_MODES::R_FLASH : RELAY_MODES::IDLE;
+		if (R_Sw_Stable == PUSHED)
+		{
+			actMode = (L_Sw_Stable == PUSHED) ? RELAY_MODES::WARN_FLASH : RELAY_MODES::R_FLASH;
+		}
+		else
+		{
+			actMode = (L_Sw_Stable == PUSHED) ? RELAY_MODES::L_FLASH : RELAY_MODES::IDLE;
+		}
 	}
-	if (L_Sw_Stable != act_L_Sw && millis() - L_Sw_LastReadChangeTime > DEBOUNCE_PROTECTION_TIME)
-	{
-		L_Sw_Stable == act_L_Sw;
-
-		actMode = act_L_Sw ? RELAY_MODES::L_FLASH : RELAY_MODES::IDLE;
-	}
-
-	if (R_Sw_Stable && L_Sw_Stable)
-	{
-		actMode = RELAY_MODES::WARN_FLASH;
-	}
-	if (!R_Sw_Stable && !L_Sw_Stable)
-	{
-		actMode = RELAY_MODES::IDLE;
-	}
-
 
 	// Handle mode change ----------------------------------
+	//
 
 	if (actMode != Mode)
 	{
 		Flash_State = OFF;
 		ResetFlashTime();
 
-		switch (actMode)
-		{
-			case RELAY_MODES::R_FLASH:
-				Set_Port_Out(LIGHTS_OUTPUT::RIGHT);
-				break;
-
-			case RELAY_MODES::L_FLASH:
-				Set_Port_Out(LIGHTS_OUTPUT::LEFT);
-				break;
-
-			case RELAY_MODES::WARN_FLASH:
-				Set_Port_Out(LIGHTS_OUTPUT::BOTH);
-				break;
-
-			case RELAY_MODES::EMERG_BREAK:
-				Set_Port_Out(LIGHTS_OUTPUT::NONE);
-				break;
-
-			case RELAY_MODES::IDLE:
-			default:
-				Set_Port_Out(LIGHTS_OUTPUT::NONE);
-				break;
-		}
-
+#if OUTPUT_BY_PORT
 
 		switch (actMode)
 		{
-			case RELAY_MODES::R_FLASH:
-				Set_R_Light(ON);
-				Set_L_Light(OFF);
-				break;
+		case RELAY_MODES::R_FLASH:
+			Set_Port_Out(LIGHTS_OUTPUT::RIGHT);
+			break;
 
-			case RELAY_MODES::L_FLASH:
-				Set_R_Light(OFF);
-				Set_L_Light(ON);
-				break;
+		case RELAY_MODES::L_FLASH:
+			Set_Port_Out(LIGHTS_OUTPUT::LEFT);
+			break;
 
-			case RELAY_MODES::WARN_FLASH:
-				Set_Both_Lights(ON);
-				break;
+		case RELAY_MODES::WARN_FLASH:
+			Set_Port_Out(LIGHTS_OUTPUT::BOTH);
+			break;
 
-			case RELAY_MODES::EMERG_BREAK:
-				Set_Both_Lights(OFF);
-				break;
+		case RELAY_MODES::EMERG_BREAK:
+			Set_Port_Out(LIGHTS_OUTPUT::NONE);
+			break;
 
-			case RELAY_MODES::IDLE:
-			default:
-				Set_Both_Lights(OFF);
-				break;
+		case RELAY_MODES::IDLE:
+		default:
+			Set_Port_Out(LIGHTS_OUTPUT::NONE);
+			break;
 		}
 
+#else
+		switch (actMode)
+		{
+		case RELAY_MODES::R_FLASH:
+			Set_R_Light(ON);
+			Set_L_Light(OFF);
+			break;
+
+		case RELAY_MODES::L_FLASH:
+			Set_R_Light(OFF);
+			Set_L_Light(ON);
+			break;
+
+		case RELAY_MODES::WARN_FLASH:
+			Set_Both_Lights(ON);
+			break;
+
+		case RELAY_MODES::EMERG_BREAK:
+			Set_Both_Lights(OFF);
+			break;
+
+		case RELAY_MODES::IDLE:
+		default:
+			Set_Both_Lights(OFF);
+			break;
+		}
+
+#endif
 
 		Mode = actMode;
+
+		//Serial.print("Mode change: ");
+		//Serial.print(Mode);
+		//Serial.println();
 	}
 
 
-	// -----------------------------------------------------
+
+	// handle flashing -------------------------------------
+	// 
 
 	bool new_flash_state = Flash_State;
 
-
-	// handle flashing -------------------------------------
-
 	if (Mode != RELAY_MODES::IDLE)
 	{
-		if (Flash_State && (millis() - LastTime_Toggle > Flash_ON_Time))
+		if ((Flash_State == ON) && (millis() - Flash_LastTime > Flash_ON_Time))
 		{
 			new_flash_state = OFF;
 		}
-		else if (!Flash_State && (millis() - LastTime_Toggle > Flash_OFF_Time))
+		else if ((Flash_State == OFF) && (millis() - Flash_LastTime > Flash_OFF_Time))
 		{
 			new_flash_state = ON;
 			HandleFlashTime();
@@ -300,63 +352,67 @@ void loop() {
 	}
 
 
-	// handle lights changes ------------------------------
+	// Set lights if flash changed ------------------------------
 	// 
 
 	if (new_flash_state != Flash_State)
 	{
-		switch (Mode)
-		{
-			case RELAY_MODES::R_FLASH:
-				Set_Port_Out(new_flash_state ? LIGHTS_OUTPUT::RIGHT : LIGHTS_OUTPUT::NONE);
-				break;
 
-			case RELAY_MODES::L_FLASH:
-				Set_Port_Out(new_flash_state ? LIGHTS_OUTPUT::LEFT : LIGHTS_OUTPUT::NONE);
-				break;
-
-			case RELAY_MODES::WARN_FLASH:
-				Set_Port_Out(new_flash_state ? LIGHTS_OUTPUT::BOTH : LIGHTS_OUTPUT::NONE);
-				break;
-
-			case RELAY_MODES::EMERG_BREAK:
-				Set_Port_Out(new_flash_state ? LIGHTS_OUTPUT::BOTH : LIGHTS_OUTPUT::NONE);
-				break;
-
-			case RELAY_MODES::IDLE:
-			default:
-				// nothing to do here
-				break;
-		}
-
+#if OUTPUT_BY_PORT
 
 		switch (Mode)
 		{
-			case RELAY_MODES::R_FLASH:
-				Set_R_Light(new_flash_state);
-				break;
+		case RELAY_MODES::R_FLASH:
+			Set_Port_Out((new_flash_state == ON) ? LIGHTS_OUTPUT::RIGHT : LIGHTS_OUTPUT::NONE);
+			break;
 
-			case RELAY_MODES::L_FLASH:
-				Set_L_Light(new_flash_state);
-				break;
+		case RELAY_MODES::L_FLASH:
+			Set_Port_Out((new_flash_state == ON) ? LIGHTS_OUTPUT::LEFT : LIGHTS_OUTPUT::NONE);
+			break;
 
-			case RELAY_MODES::WARN_FLASH:
-				Set_Both_Lights(new_flash_state);
-				break;
+		case RELAY_MODES::WARN_FLASH:
+			Set_Port_Out((new_flash_state == ON) ? LIGHTS_OUTPUT::BOTH : LIGHTS_OUTPUT::NONE);
+			break;
 
-			case RELAY_MODES::EMERG_BREAK:
-				Set_Both_Lights(new_flash_state);
-				break;
+		case RELAY_MODES::EMERG_BREAK:
+			Set_Port_Out((new_flash_state == ON) ? LIGHTS_OUTPUT::BOTH : LIGHTS_OUTPUT::NONE);
+			break;
 
-			case RELAY_MODES::IDLE:
-			default:
-				// nothing to do here
-				break;
+		case RELAY_MODES::IDLE:
+		default:
+			// nothing to do here
+			break;
 		}
 
+#else
+
+		switch (Mode)
+		{
+		case RELAY_MODES::R_FLASH:
+			Set_R_Light(new_flash_state);
+			break;
+
+		case RELAY_MODES::L_FLASH:
+			Set_L_Light(new_flash_state);
+			break;
+
+		case RELAY_MODES::WARN_FLASH:
+			Set_Both_Lights(new_flash_state);
+			break;
+
+		case RELAY_MODES::EMERG_BREAK:
+			Set_Both_Lights(new_flash_state);
+			break;
+
+		case RELAY_MODES::IDLE:
+		default:
+			// nothing to do here
+			break;
+		}
+#endif
 
 		Flash_State = new_flash_state;
-		LastTime_Toggle = millis();
+		Flash_LastTime = millis();
 	}
 
 
